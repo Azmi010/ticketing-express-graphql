@@ -25,8 +25,8 @@ export class AuthResolver {
   }
 
   @Mutation(() => User)
-  async register(@Arg("options") options: RegisterInput): Promise<User> {
-    const hashedPassword = await bcrypt.hash(options.password, 12);
+  async register(@Arg("data") data: RegisterInput): Promise<User> {
+    const hashedPassword = await bcrypt.hash(data.password, 12);
     const defaultRole = await Role.findOneBy({ id: 2 });
 
     if (!defaultRole) {
@@ -34,8 +34,8 @@ export class AuthResolver {
     }
 
     const user = await User.create({
-      name: options.name,
-      email: options.email,
+      name: data.name,
+      email: data.email,
       password: hashedPassword,
       role: defaultRole,
       events: [],
@@ -45,21 +45,28 @@ export class AuthResolver {
   }
 
   @Mutation(() => LoginResponse)
-  async login(@Arg("options") options: LoginInput): Promise<LoginResponse> {
-    const user = await User.findOne({ where: { email: options.email } });
+  async login(@Arg("data") data: LoginInput): Promise<LoginResponse> {
+    const user = await User.findOne({
+      where: { email: data.email },
+      relations: ["role"],
+    });
     if (!user) {
       throw new Error("Email doesn't exist");
     }
 
-    const valid = await bcrypt.compare(options.password, user.password);
+    const valid = await bcrypt.compare(data.password, user.password);
     if (!valid) {
       throw new Error("Incorrect password");
     }
 
     return {
-      accessToken: sign({ userId: user.id }, process.env.ACCESS_TOKEN_SECRET!, {
-        expiresIn: "15m",
-      }),
+      accessToken: sign(
+        { userId: user.id, role: user.role.name },
+        process.env.ACCESS_TOKEN_SECRET!,
+        {
+          expiresIn: "15m",
+        }
+      ),
     };
   }
 }
