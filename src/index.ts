@@ -7,6 +7,8 @@ import cors from "cors";
 import { json } from "body-parser";
 import { AppDataSource } from "./config/data-source";
 import { EventResolver } from "./resolvers/EventResolver";
+import { AuthResolver } from "./resolvers/AuthResolver";
+import { MyContext } from "./utils/MyContext";
 
 const main = async () => {
   try {
@@ -19,7 +21,7 @@ const main = async () => {
   }
 
   const schema = await buildSchema({
-    resolvers: [EventResolver],
+    resolvers: [EventResolver, AuthResolver],
     validate: false,
   });
 
@@ -36,7 +38,9 @@ const main = async () => {
     "/graphql",
     cors<cors.CorsRequest>(),
     json(),
-    expressMiddleware(server)
+    expressMiddleware(server, {
+      context: async ({ req, res }): Promise<MyContext> => ({ req, res }),
+    })
   );
 
   app.listen(4000, () => {
