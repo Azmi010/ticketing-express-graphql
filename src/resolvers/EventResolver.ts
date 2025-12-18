@@ -28,4 +28,37 @@ export class EventResolver {
         await event.save();
         return event;
     }
+
+    @Mutation(() => Event)
+    @UseMiddleware(isAuth, isAdmin)
+    async updateEvent(
+        @Arg("id") id: number,
+        @Arg("data") data: EventInput
+    ) {
+        const event = await Event.findOneBy({ id });
+        if (!event) {
+            throw new Error("Event not found");
+        }
+
+        event.title = data.title;
+        event.description = data.description;
+        event.date = data.date;
+        event.category = await EventCategory.findOneBy({ id: data.categoryId   }) as EventCategory;
+        event.organizer = await User.findOneBy({ id: data.organizerId   }) as User;
+
+        await event.save();
+        return event;
+    }
+
+    @Mutation(() => Boolean)
+    @UseMiddleware(isAuth, isAdmin)
+    async deleteEvent(@Arg("id") id: number) {
+        const event = await Event.findOneBy({ id })
+        if (!event) {
+            throw new Error("Event not found");
+        }
+
+        await event.remove();
+        return true;
+    }
 }
