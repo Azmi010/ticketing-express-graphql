@@ -21,6 +21,10 @@ export class Event extends BaseEntity {
 
     @Field()
     @Column()
+    location: string;
+
+    @Field()
+    @Column()
     date: Date;
 
     @Field()

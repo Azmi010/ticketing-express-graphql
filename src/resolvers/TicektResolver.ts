@@ -4,6 +4,7 @@ import { Event } from "../entities/Event";
 import { isAuth } from "../utils/isAuth";
 import { isAdmin } from "../utils/isAdmin";
 import { TicketInput } from "../types/TicketInput";
+import { redis } from "../config/redis";
 
 @Resolver()
 export class TicketResolver {
@@ -32,6 +33,7 @@ export class TicketResolver {
         })
         
         await ticket.save();
+        await redis.set(`ticket:${ticket.id}:quota`, ticket.quota);
         return ticket;
     }
 
@@ -48,6 +50,7 @@ export class TicketResolver {
         ticket.quota = data.quota;
 
         await ticket.save();
+        await redis.set(`ticket:${ticket.id}:quota`, ticket.quota);
         return ticket;
     }
 
@@ -60,6 +63,7 @@ export class TicketResolver {
         }
 
         await ticket.remove();
+        await redis.del(`ticket:${id}:quota`);
         return true;
     }
 }

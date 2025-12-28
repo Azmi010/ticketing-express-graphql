@@ -6,7 +6,6 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from "typeorm";
-import { User } from "./User";
 import { Order } from "./Order";
 import { Ticket } from "./Ticket";
 

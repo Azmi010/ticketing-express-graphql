@@ -11,7 +11,13 @@ export class EventResolver {
     @Query(() => [Event])
     @UseMiddleware(isAuth)
     async events() {
-        return Event.find({ relations: ["category", "organizer", "tickets"] });
+        return Event.find({ relations: ["category"] });
+    }
+
+    @Query(() => Event)
+    @UseMiddleware(isAuth)
+    async event(@Arg("id") id: number) {
+        return Event.findOne({ where: { id }, relations: ["category", "organizer", "tickets"] });
     }
     
     @Mutation(() => Event)
@@ -20,6 +26,7 @@ export class EventResolver {
         const event = Event.create({
             title: data.title,
             description: data.description,
+            location: data.location,
             date: data.date,
             category: await EventCategory.findOneBy({ id: data.categoryId   }) as EventCategory,
             organizer: await User.findOneBy({ id: data.organizerId   }) as User,
@@ -42,6 +49,7 @@ export class EventResolver {
 
         event.title = data.title;
         event.description = data.description;
+        event.location = data.location;
         event.date = data.date;
         event.category = await EventCategory.findOneBy({ id: data.categoryId   }) as EventCategory;
         event.organizer = await User.findOneBy({ id: data.organizerId   }) as User;

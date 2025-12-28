@@ -9,6 +9,9 @@ export class EventInput {
     description:string;
 
     @Field()
+    location: string;
+
+    @Field()
     date:Date;
 
     @Field(() => Int)

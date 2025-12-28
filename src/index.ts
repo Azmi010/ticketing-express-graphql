@@ -10,6 +10,7 @@ import { EventResolver } from "./resolvers/EventResolver";
 import { AuthResolver } from "./resolvers/AuthResolver";
 import { MyContext } from "./utils/MyContext";
 import { TicketResolver } from "./resolvers/TicektResolver";
+import { OrderResolver } from "./resolvers/OrderResolver";
 
 const main = async () => {
   try {
@@ -22,7 +23,7 @@ const main = async () => {
   }
 
   const schema = await buildSchema({
-    resolvers: [EventResolver, AuthResolver, TicketResolver],
+    resolvers: [EventResolver, AuthResolver, TicketResolver, OrderResolver],
     validate: false,
   });
 
