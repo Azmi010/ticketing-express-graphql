@@ -13,6 +13,7 @@
   "dependencies": {
     "@apollo/server": "^4.12.2",
     "@apollo/subgraph": "^2.12.2",
+    "@elastic/elasticsearch": "^9.2.0",
     "bcrypt": "^6.0.0",
     "body-parser": "^2.2.1",
     "class-validator": "^0.14.3",
