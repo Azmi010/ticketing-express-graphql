@@ -16,7 +16,13 @@ export class EventResolver {
   @Query(() => [Event])
   @UseMiddleware(isAuth)
   async events() {
-    return Event.find({ relations: ["category"] });
+    return Event.find({ relations: ["category", "tickets"] });
+  }
+
+  @Query(() => [EventCategory])
+  @UseMiddleware(isAuth)
+  async eventCategories() {
+    return EventCategory.find();
   }
 
   @Query(() => Event)

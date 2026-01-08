@@ -23,6 +23,12 @@ export class OrderResolver {
   }
 
   @Query(() => [Order])
+  @UseMiddleware(isAuth, isAdmin)
+  async orders() {
+    return Order.find({ relations: ["details", "user", "details.ticket", "details.ticket.event"] });
+  }
+
+  @Query(() => [Order])
   @UseMiddleware(isAuth)
   async myOrders(@Ctx() { payload }: MyContext) {
     return Order.find({
@@ -51,15 +57,14 @@ export class OrderResolver {
                 local stock = tonumber(redis.call('get', key) or 0)
                 local qty = tonumber(ARGV[i])
                 if stock < qty then
-                return 0 -- Gagal, stok kurang
+                return 0
                 end
             end
         
-            -- Kalau loop di atas lolos semua, baru kurangi stok
             for i, key in ipairs(KEYS) do
                 redis.call('decrby', key, ARGV[i])
             end
-            return 1 -- Sukses
+            return 1
         `;
 
     const result = await redis.eval(
