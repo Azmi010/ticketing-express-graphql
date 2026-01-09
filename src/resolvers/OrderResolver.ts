@@ -9,6 +9,8 @@ import { User } from "../entities/User";
 import { OrderDetail } from "../entities/OrderDetail";
 import { Ticket } from "../entities/Ticket";
 import { isAdmin } from "../utils/isAdmin";
+import { pubsub, TICKET_STOCK_UPDATED } from "../config/pubsub";
+import { TicketStockUpdate } from "../types/TicketStockUpdate";
 
 @Resolver()
 export class OrderResolver {
@@ -79,7 +81,7 @@ export class OrderResolver {
     }
 
     try {
-      return await AppDataSource.manager.transaction(
+      const order = await AppDataSource.manager.transaction(
         async (transactionalEntityManager) => {
           const user = await transactionalEntityManager.findOneBy(User, {
             id: parseInt(payload!.userId),
@@ -90,11 +92,23 @@ export class OrderResolver {
           const orderDetailsToSave: OrderDetail[] = [];
 
           for (const item of items) {
+            const ticketBefore = await transactionalEntityManager.findOne(Ticket, {
+              where: { id: item.ticketId },
+              relations: ["event"],
+            });
+
+            if (!ticketBefore) throw new Error(`Ticket Invalid`);
+
+            const previousStock = ticketBefore.quota;
+
             await transactionalEntityManager.decrement(Ticket, {
               id: item.ticketId,
             }, "quota", item.qty);
 
-            const ticket = await transactionalEntityManager.findOneBy(Ticket, { id: item.ticketId });
+            const ticket = await transactionalEntityManager.findOne(Ticket, {
+              where: { id: item.ticketId },
+              relations: ["event"],
+            });
 
             if (!ticket) throw new Error(`Ticket Invalid`);
 
@@ -104,6 +118,18 @@ export class OrderResolver {
             detail.ticket = ticket;
             detail.qty = item.qty;
             orderDetailsToSave.push(detail);
+
+            const updatePayload: TicketStockUpdate = {
+              ticketId: ticket.id,
+              ticketName: ticket.name,
+              eventId: ticket.event.id,
+              eventTitle: ticket.event.title,
+              remainingStock: ticket.quota,
+              previousStock: previousStock,
+              updatedAt: new Date(),
+            };
+
+            await pubsub.publish(TICKET_STOCK_UPDATED, updatePayload);
           }
 
           const order = new Order();
@@ -120,6 +146,8 @@ export class OrderResolver {
           return savedOrder;
         }
       );
+
+      return order;
     } catch (error) {
       console.error("MySQL Error, Rolling back Redis...", error);
 
