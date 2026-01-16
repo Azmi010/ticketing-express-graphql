@@ -1,4 +1,13 @@
-import { Arg, Ctx, Mutation, Query, Resolver, UseMiddleware } from "type-graphql";
+import {
+  Arg,
+  Ctx,
+  Mutation,
+  Query,
+  Resolver,
+  Root,
+  Subscription,
+  UseMiddleware,
+} from "type-graphql";
 import { Order } from "../entities/Order";
 import { MyContext } from "../utils/MyContext";
 import { OrderInput } from "../types/OrderInput";
@@ -11,6 +20,11 @@ import { Ticket } from "../entities/Ticket";
 import { isAdmin } from "../utils/isAdmin";
 import { pubsub, TICKET_STOCK_UPDATED } from "../config/pubsub";
 import { TicketStockUpdate } from "../types/TicketStockUpdate";
+import { emailQueue } from "../config/queue";
+import { EmailLog } from "../entities/EmailLog";
+import { EmailStatusPayload } from "../types/EmailStatusPayload";
+
+export const EMAIL_STATUS_UPDATED = "EMAIL_STATUS_UPDATED";
 
 @Resolver()
 export class OrderResolver {
@@ -27,7 +41,9 @@ export class OrderResolver {
   @Query(() => [Order])
   @UseMiddleware(isAuth, isAdmin)
   async orders() {
-    return Order.find({ relations: ["details", "user", "details.ticket", "details.ticket.event"] });
+    return Order.find({
+      relations: ["details", "user", "details.ticket", "details.ticket.event"],
+    });
   }
 
   @Query(() => [Order])
@@ -36,7 +52,7 @@ export class OrderResolver {
     return Order.find({
       where: { user: { id: parseInt(payload!.userId) } },
       relations: ["details", "details.ticket", "details.ticket.event"],
-      order: { createdAt: "DESC" }
+      order: { createdAt: "DESC" },
     });
   }
 
@@ -92,18 +108,26 @@ export class OrderResolver {
           const orderDetailsToSave: OrderDetail[] = [];
 
           for (const item of items) {
-            const ticketBefore = await transactionalEntityManager.findOne(Ticket, {
-              where: { id: item.ticketId },
-              relations: ["event"],
-            });
+            const ticketBefore = await transactionalEntityManager.findOne(
+              Ticket,
+              {
+                where: { id: item.ticketId },
+                relations: ["event"],
+              }
+            );
 
             if (!ticketBefore) throw new Error(`Ticket Invalid`);
 
             const previousStock = ticketBefore.quota;
 
-            await transactionalEntityManager.decrement(Ticket, {
-              id: item.ticketId,
-            }, "quota", item.qty);
+            await transactionalEntityManager.decrement(
+              Ticket,
+              {
+                id: item.ticketId,
+              },
+              "quota",
+              item.qty
+            );
 
             const ticket = await transactionalEntityManager.findOne(Ticket, {
               where: { id: item.ticketId },
@@ -147,7 +171,40 @@ export class OrderResolver {
         }
       );
 
-      return order;
+      const orderWithRelations = await Order.findOne({
+        where: { id: order.id },
+        relations: ["user", "details", "details.ticket", "details.ticket.event"],
+      });
+
+      if (!orderWithRelations) {
+        throw new Error("Order not found after creation");
+      }
+
+      const emailLog = EmailLog.create({
+        to: orderWithRelations.user.email,
+        subject: `Order #${orderWithRelations.id} berhasil`,
+        order: orderWithRelations,
+        status: "PENDING",
+      });
+
+      await emailLog.save();
+
+      await emailQueue.add(
+        "send-order-email",
+        { emailLogId: emailLog.id },
+        {
+          delay: 20000,
+          attempts: 3,
+          backoff: {
+            type: "exponential",
+            delay: 5000,
+          },
+          removeOnComplete: true,
+          removeOnFail: false,
+        }
+      );
+
+      return orderWithRelations;
     } catch (error) {
       console.error("MySQL Error, Rolling back Redis...", error);
 
@@ -157,5 +214,19 @@ export class OrderResolver {
 
       throw new Error("Transaction failed, please try again.");
     }
+  }
+
+  @Subscription(() => EmailStatusPayload, {
+    topics: EMAIL_STATUS_UPDATED,
+    filter: ({ payload, args }) => {
+      // Filter only for specific orderId
+      return payload.orderId === args.orderId;
+    },
+  })
+  emailStatusUpdated(
+    @Root() payload: EmailStatusPayload,
+    @Arg("orderId") orderId: number
+  ): EmailStatusPayload {
+    return payload;
   }
 }

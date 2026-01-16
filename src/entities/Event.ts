@@ -27,11 +27,11 @@ export class Event extends BaseEntity {
     @Column()
     date: Date;
 
-    @Field()
+    @Field(() => User)
     @ManyToOne(() => User, user => user.events)
     organizer: User;
 
-    @Field()
+    @Field(() => EventCategory)
     @ManyToOne(() => EventCategory, category => category.events)
     category: EventCategory;
 
